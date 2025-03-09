@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Slider } from "@/components/ui/slider"
 import { Upload, Play, Pause, RotateCcw, FileText, FileUp } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // PDF.js imports and initialization
 let pdfjsLib: typeof import('pdfjs-dist')
@@ -29,6 +30,8 @@ export function TextReader() {
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pdfDocRef = useRef<any>(null)
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [selectedVoice, setSelectedVoice] = useState<string>("")
 
   // Initialize PDF.js
   useEffect(() => {
@@ -82,10 +85,34 @@ export function TextReader() {
     }
   }, [currentPage])
 
-  // Initialize speech synthesis
+  // Initialize speech synthesis and load voices
   useEffect(() => {
     if (typeof window !== "undefined") {
       speechSynthesisRef.current = window.speechSynthesis
+
+      // Load initial voices
+      const loadVoices = () => {
+        const availableVoices = speechSynthesisRef.current?.getVoices() || []
+        // Filter for US English female voices
+        const usEnglishVoices = availableVoices.filter(
+          voice => voice.lang.includes('en-US')
+        )
+        setVoices(usEnglishVoices)
+        
+        // Set default to first US female voice if available
+        const defaultVoice = usEnglishVoices.find(voice => voice.name.toLowerCase().includes('female'))
+        if (defaultVoice) {
+          setSelectedVoice(defaultVoice.name)
+        } else if (usEnglishVoices.length > 0) {
+          setSelectedVoice(usEnglishVoices[0].name)
+        }
+      }
+
+      // Load voices immediately if available
+      loadVoices()
+
+      // Also handle dynamic voice loading
+      speechSynthesisRef.current.onvoiceschanged = loadVoices
     }
 
     return () => {
@@ -194,6 +221,12 @@ export function TextReader() {
 
     const utterance = new SpeechSynthesisUtterance(lines[currentLine])
     utterance.rate = rate
+    
+    // Set the selected voice
+    const voice = voices.find(v => v.name === selectedVoice)
+    if (voice) {
+      utterance.voice = voice
+    }
 
     utterance.onend = () => {
       if (currentLine < lines.length - 1) {
@@ -363,27 +396,47 @@ export function TextReader() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {!isPlaying ? (
-                <Button onClick={startSpeech} disabled={lines.length === 0 || isLoading}>
-                  <Play className="mr-2 h-4 w-4" />
-                  Start Reading
+            <div className="flex flex-col space-y-4">
+              {/* Voice Selection */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-600">Voice:</span>
+                <Select value={selectedVoice} onValueChange={setSelectedVoice}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select a voice" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {voices.map((voice) => (
+                      <SelectItem key={voice.name} value={voice.name}>
+                        {voice.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Playback Controls */}
+              <div className="flex items-center gap-2">
+                {!isPlaying ? (
+                  <Button onClick={startSpeech} disabled={lines.length === 0 || isLoading}>
+                    <Play className="mr-2 h-4 w-4" />
+                    Start Reading
+                  </Button>
+                ) : isPaused ? (
+                  <Button onClick={resumeSpeech}>
+                    <Play className="mr-2 h-4 w-4" />
+                    Resume
+                  </Button>
+                ) : (
+                  <Button onClick={pauseSpeech}>
+                    <Pause className="mr-2 h-4 w-4" />
+                    Pause
+                  </Button>
+                )}
+                <Button variant="outline" onClick={resetReader} disabled={lines.length === 0 || isLoading}>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Reset
                 </Button>
-              ) : isPaused ? (
-                <Button onClick={resumeSpeech}>
-                  <Play className="mr-2 h-4 w-4" />
-                  Resume
-                </Button>
-              ) : (
-                <Button onClick={pauseSpeech}>
-                  <Pause className="mr-2 h-4 w-4" />
-                  Pause
-                </Button>
-              )}
-              <Button variant="outline" onClick={resetReader} disabled={lines.length === 0 || isLoading}>
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Reset
-              </Button>
+              </div>
             </div>
           </div>
         </div>
