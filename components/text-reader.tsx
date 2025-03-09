@@ -21,17 +21,21 @@ export function TextReader() {
   const [isPaused, setIsPaused] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [fileName, setFileName] = useState<string>("")
+  const [pdfUrl, setPdfUrl] = useState<string>("")
+  const [numPages, setNumPages] = useState<number>(0)
+  const [currentPage, setCurrentPage] = useState<number>(1)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null)
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pdfDocRef = useRef<any>(null)
 
   // Initialize PDF.js
   useEffect(() => {
     const initPdfJs = async () => {
       try {
         const PDFJS = await import('pdfjs-dist')
-        // Use unpkg CDN with exact version match
-        PDFJS.GlobalWorkerOptions.workerSrc = `//mozilla.github.io/pdf.js/build/pdf.worker.mjs`
+        PDFJS.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'
         pdfjsLib = PDFJS
       } catch (error) {
         console.error('Error initializing PDF.js:', error)
@@ -39,6 +43,44 @@ export function TextReader() {
     }
     initPdfJs()
   }, [])
+
+  // Render PDF page
+  const renderPage = async (pageNum: number) => {
+    if (!pdfDocRef.current || !canvasRef.current) return
+
+    try {
+      const page = await pdfDocRef.current.getPage(pageNum)
+      const canvas = canvasRef.current
+      const viewport = page.getViewport({ scale: 1.5 })
+
+      canvas.height = viewport.height
+      canvas.width = viewport.width
+
+      const renderContext = {
+        canvasContext: canvas.getContext('2d'),
+        viewport: viewport
+      }
+
+      await page.render(renderContext).promise
+    } catch (error) {
+      console.error('Error rendering PDF page:', error)
+    }
+  }
+
+  // Handle page navigation
+  const changePage = (offset: number) => {
+    const newPage = currentPage + offset
+    if (newPage >= 1 && newPage <= numPages) {
+      setCurrentPage(newPage)
+    }
+  }
+
+  // Effect to render page when current page changes
+  useEffect(() => {
+    if (pdfDocRef.current) {
+      renderPage(currentPage)
+    }
+  }, [currentPage])
 
   // Initialize speech synthesis
   useEffect(() => {
@@ -110,12 +152,26 @@ export function TextReader() {
       }
 
       if (file.type === "application/pdf") {
-        // Handle PDF file
+        // Create URL for PDF rendering
+        const fileUrl = URL.createObjectURL(file)
+        setPdfUrl(fileUrl)
+
+        // Load PDF for rendering
         const arrayBuffer = await file.arrayBuffer()
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+        pdfDocRef.current = pdf
+        setNumPages(pdf.numPages)
+        setCurrentPage(1)
+
+        // Extract text
         const extractedText = await extractTextFromPDF(arrayBuffer)
         setText(extractedText)
       } else {
         // Handle text file
+        setPdfUrl("")
+        setNumPages(0)
+        pdfDocRef.current = null
+        
         const reader = new FileReader()
         reader.onload = (event) => {
           const content = event.target?.result as string
@@ -292,6 +348,87 @@ export function TextReader() {
             <RotateCcw className="mr-2 h-4 w-4" />
             Reset
           </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* PDF Viewer */}
+        {pdfUrl && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-slate-700">PDF View</h2>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => changePage(-1)}
+                  disabled={currentPage <= 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of {numPages}
+                </span>
+                <Button
+                  variant="outline"
+                  onClick={() => changePage(1)}
+                  disabled={currentPage >= numPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+            <div className="border rounded-lg p-4 bg-white overflow-auto">
+              <canvas ref={canvasRef} className="max-w-full" />
+            </div>
+          </div>
+        )}
+
+        {/* Text Content */}
+        <div className="space-y-4">
+          <div className="flex flex-col space-y-4">
+            <Textarea
+              value={text}
+              onChange={handleTextChange}
+              placeholder="Paste your text here or upload a file (TXT, PDF, DOC, DOCX)..."
+              className="min-h-[150px] text-base"
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-slate-700">Reader Controls</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-600">Speed: {rate.toFixed(1)}x</span>
+                <div className="w-32">
+                  <Slider value={[rate]} min={0.5} max={2} step={0.1} onValueChange={handleRateChange} />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!isPlaying ? (
+                <Button onClick={startSpeech} disabled={lines.length === 0 || isLoading}>
+                  <Play className="mr-2 h-4 w-4" />
+                  Start Reading
+                </Button>
+              ) : isPaused ? (
+                <Button onClick={resumeSpeech}>
+                  <Play className="mr-2 h-4 w-4" />
+                  Resume
+                </Button>
+              ) : (
+                <Button onClick={pauseSpeech}>
+                  <Pause className="mr-2 h-4 w-4" />
+                  Pause
+                </Button>
+              )}
+              <Button variant="outline" onClick={resetReader} disabled={lines.length === 0 || isLoading}>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reset
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
