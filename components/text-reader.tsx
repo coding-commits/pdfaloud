@@ -28,10 +28,14 @@ export function TextReader() {
   // Initialize PDF.js
   useEffect(() => {
     const initPdfJs = async () => {
-      pdfjsLib = await import('pdfjs-dist')
-      // Set up worker from CDN
-      const pdfjsVersion = pdfjsLib.version
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsVersion}/pdf.worker.min.js`
+      try {
+        const PDFJS = await import('pdfjs-dist')
+        // Use unpkg CDN with exact version match
+        PDFJS.GlobalWorkerOptions.workerSrc = `//mozilla.github.io/pdf.js/build/pdf.worker.mjs`
+        pdfjsLib = PDFJS
+      } catch (error) {
+        console.error('Error initializing PDF.js:', error)
+      }
     }
     initPdfJs()
   }, [])
