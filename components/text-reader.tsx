@@ -306,49 +306,6 @@ export function TextReader() {
             <span>Loaded: {fileName}</span>
           </div>
         )}
-
-        <Textarea
-          value={text}
-          onChange={handleTextChange}
-          placeholder="Paste your text here or upload a file (TXT, PDF, DOC, DOCX)..."
-          className="min-h-[150px] text-base"
-          disabled={isLoading}
-        />
-      </div>
-
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-slate-700">Reader Controls</h2>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600">Speed: {rate.toFixed(1)}x</span>
-            <div className="w-32">
-              <Slider value={[rate]} min={0.5} max={2} step={0.1} onValueChange={handleRateChange} />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {!isPlaying ? (
-            <Button onClick={startSpeech} disabled={lines.length === 0 || isLoading}>
-              <Play className="mr-2 h-4 w-4" />
-              Start Reading
-            </Button>
-          ) : isPaused ? (
-            <Button onClick={resumeSpeech}>
-              <Play className="mr-2 h-4 w-4" />
-              Resume
-            </Button>
-          ) : (
-            <Button onClick={pauseSpeech}>
-              <Pause className="mr-2 h-4 w-4" />
-              Pause
-            </Button>
-          )}
-          <Button variant="outline" onClick={resetReader} disabled={lines.length === 0 || isLoading}>
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Reset
-          </Button>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -383,7 +340,7 @@ export function TextReader() {
           </div>
         )}
 
-        {/* Text Content */}
+        {/* Text Content and Controls */}
         <div className="space-y-4">
           <div className="flex flex-col space-y-4">
             <Textarea
@@ -432,6 +389,7 @@ export function TextReader() {
         </div>
       </div>
 
+      {/* Text Display with Highlighting */}
       {lines.length > 0 && (
         <div className="mt-8 p-6 bg-white rounded-lg shadow-sm border">
           <h2 className="text-xl font-semibold text-slate-700 mb-4">Text Display</h2>
